@@ -1,0 +1,15 @@
+{
+  "name": "newman-reporter-Newman_Report",
+  "version": "1.0.0",
+  "description": "A beautiful, gradient-rich HTML reporter for Newman (Postman CLI runner)",
+  "main": "index.js",
+  "keywords": ["newman", "reporter", "postman", "html", "test", "report"],
+  "author": "You",
+  "license": "MIT",
+  "peerDependencies": {
+    "newman": ">=5.0.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
