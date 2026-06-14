@@ -1,20 +1,32 @@
-# 📊 Newman Collection Runner and Reporter 
+# 📊 Newman Collection Runner and Reporter
 
-A stunning light-theme HTML test report for Postman collections run via Newman CLI.
+A light-theme, interactive HTML test report for Postman collections run via Newman CLI.  
+Built for the **MOHAP/EDE API Test Automation** project.
+
+> 👋 **New to Newman?** See `ReadMeForInstructions.txt` in this folder for step-by-step beginner instructions with copy-paste commands.
 
 ---
 
-## 📁 Folder Structure
-
-Place this folder anywhere on your machine. Recommended location:
+## 📁 Actual Folder Structure
 
 ```
-📂 newman_Report/        ← This folder
-├── index.js                         ← Reporter entry point
-├── package.json                     ← Package metadata
-├── README.md                        ← This file
-└── 📂 src/
-    └── template.js                  ← HTML report generator
+📂 newman_Report/
+├── index.js                          ← Reporter engine (Newman event hooks)
+├── package.json                      ← Package identity (name: newman-reporter-Newman_Report)
+├── README.md                         ← This file (developer reference)
+├── ReadMeForInstructions.txt         ← Beginner-friendly run guide
+│
+├── 📂 src/
+│   └── template.js                   ← HTML/CSS/JS report generator
+│
+├── 📂 collections/
+│   └── MOH_Internal_API.postman_collection.json   ← Postman collection
+│
+├── 📂 environments/
+│   └── MOHAP-EDE_OldAPI.postman_environment.json  ← UAT environment variables
+│
+└── 📂 reports/
+    └── report.html                   ← Generated report (created/updated on each run)
 ```
 
 ---
@@ -27,8 +39,8 @@ Download from: https://nodejs.org
 Choose the **LTS** version. After install, verify:
 
 ```bash
-node --version     # should show v14+ e.g. v20.11.0
-npm --version      # should show 6+
+node --version     # confirmed working: v20.20.0
+npm --version      # confirmed working: 10.8.2
 ```
 
 ---
@@ -39,167 +51,208 @@ npm --version      # should show 6+
 npm install -g newman
 ```
 
-Verify installation:
+Verify:
+
 ```bash
-newman --version   # should show 5+ e.g. 5.3.2
+newman --version   # confirmed working: 6.2.2
 ```
 
 ---
 
-### Step 3 — Link this reporter
+### Step 3 — Link the reporter
 
-Navigate into this reporter folder and link it globally so Newman can find it:
+Run this **once** from inside this folder to register the reporter globally:
 
 ```bash
-cd /path/to/newman_Report
+cd D:\Automation\Newman\newman_Report
 npm link
 ```
 
-> ✅ This registers the reporter globally on your machine.
-> You only need to do this ONCE.
+> ✅ You only need to do this once — or again if you move the folder.
 
 ---
 
-### Step 4 — Export your Postman Collection
+### Step 4 — Export your Postman Collection (if using a new collection)
 
 In Postman:
-1. Click on your collection name in the sidebar
-2. Click the **⋯ (three dots)** → **Export**
-3. Choose **Collection v2.1** → Save as `my-collection.json`
+1. Click your collection → **⋯ (three dots)** → **Export**
+2. Choose **Collection v2.1** → save into the `collections\` folder
 
-Optionally export your environment:
-1. Go to **Environments** in the sidebar
-2. Click **⋯** → **Export** → Save as `my-environment.json`
+Export your environment:
+1. **Environments** → **⋯** → **Export** → save into the `environments\` folder
+
+> The collection and environment for this project are already in place — skip this step for the existing MOHAP/EDE suite.
 
 ---
 
 ### Step 5 — Run Newman with the Newman_Report Reporter
 
+**Run with HTML report only (recommended):**
+
 ```bash
-# Basic run (no environment)
-newman run my-collection.json \
-  --reporters Newman_Report \
-  --reporter-Newman_Report-export report.html
-
-# With environment file
-newman run my-collection.json \
-  --environment my-environment.json \
-  --reporters Newman_Report \
-  --reporter-Newman_Report-export report.html
-
-# With custom report title (shown in the hero header)
-newman run my-collection.json \
-  --environment my-environment.json \
-  --reporters Newman_Report \
-  --reporter-Newman_Report-export report.html \
+newman run collections\MOH_Internal_API.postman_collection.json ^
+  --environment environments\MOHAP-EDE_OldAPI.postman_environment.json ^
+  --reporters Newman_Report ^
+  --reporter-Newman_Report-export reports\report.html ^
   --reporter-Newman_Report-title "MOHAP/EDE API Test Run Report"
-
-# With multiple reporters (CLI output + HTML)
-newman run my-collection.json \
-  --environment my-environment.json \
-  --reporters cli,Newman_Report \
-  --reporter-Newman_Report-export report.html \
-  --reporter-Newman_Report-title "MOHAP/EDE API Test Run Report"
-
-# Custom output path
-newman run my-collection.json \
-  --environment my-environment.json \
-  --reporters Newman_Report \
-  --reporter-Newman_Report-export ./reports/my-report.html \
-  --reporter-Newman_Report-title "My API Test Run"
 ```
+
+**Run with live CLI output AND HTML report:**
+
+```bash
+newman run collections\MOH_Internal_API.postman_collection.json ^
+  --environment environments\MOHAP-EDE_OldAPI.postman_environment.json ^
+  --reporters cli,Newman_Report ^
+  --reporter-Newman_Report-export reports\report.html ^
+  --reporter-Newman_Report-title "MOHAP/EDE API Test Run Report"
+```
+
+**Generic template (for any collection):**
+
+```bash
+newman run collections\<your-collection>.json ^
+  --environment environments\<your-environment>.json ^
+  --reporters Newman_Report ^
+  --reporter-Newman_Report-export reports\report.html ^
+  --reporter-Newman_Report-title "Your Custom Report Title"
+```
+
+> **Note on exit code 1:** Newman exits with code 1 when any test assertion fails.  
+> This is **normal** — the HTML report is still generated successfully.  
+> Look for `✅ Report saved →` in the terminal to confirm success.
 
 ---
 
-## 📂 Full Example File Layout
+## 📂 Full File Layout
 
 ```
-📂 my-project/
-├── 📂 newman_Report/    ← The reporter (linked globally)
-│   ├── index.js
-│   ├── package.json
-│   └── 📂 src/
-│       └── template.js
-├── my-collection.json               ← Exported from Postman
-├── my-environment.json              ← Optional environment
+📂 newman_Report/
+├── index.js
+├── package.json
+├── README.md
+├── ReadMeForInstructions.txt
+├── 📂 src/
+│   └── template.js
+├── 📂 collections/
+│   └── MOH_Internal_API.postman_collection.json
+├── 📂 environments/
+│   └── MOHAP-EDE_OldAPI.postman_environment.json
 └── 📂 reports/
-    └── report.html                  ← Generated report
+    └── report.html
 ```
 
 ---
 
 ## 🎨 What the Report Includes
 
-| Section             | Details                                                      |
-|---------------------|--------------------------------------------------------------|
-| **Hero Header**     | Collection name, date, duration, environment info            |
-| **Stat Cards**      | Tests passed/failed, APIs passed/failed, avg response time   |
-| **Pie Chart 1**     | % of test cases passed vs failed                             |
-| **Pie Chart 2**     | API health — passed / ≤2 failures / >2 failures              |
-| **Filter Bar**      | Filter by All / Passed / Warning / Critical + search box     |
-| **Request Cards**   | Color-coded: 🟢 Green (pass) · 🟡 Yellow (≤2 fail) · 🔴 Red (>2 fail) |
-| **Test Cases**      | Expandable list of all assertions with pass/fail per request |
-| **Response Panel**  | Response body, headers, request headers, request body        |
-| **Copy Button**     | One-click copy for response body                             |
+| Section | Details |
+|---|---|
+| **Hero Header** | Custom title, run date/time, total duration, environment name |
+| **Stat Cards** | Tests passed · Tests failed · APIs passed · APIs failed · Avg response time · Total duration |
+| **Chart — Test Cases** | Doughnut chart: pass/fail % across all assertions |
+| **Chart — API Health** | Doughnut chart: requests grouped by pass / ≤2 failures / >2 failures |
+| **Interactive Legends** | Click any legend item to show/hide that chart segment |
+| **Filter Bar** | Filter cards by All / Passed / Warning / Critical + live search by name or URL |
+| **Request Cards** | Color-coded: 🟢 Pass · 🟡 Warning (1–2 fails) · 🔴 Critical (>2 fails) — click to expand |
+| **Test Cases Panel** | All assertions per request with pass/fail and error message |
+| **Response Panel** | Tabbed: Body (with Copy button) · Response Headers · Request Headers + Body |
+
+**Design:**
+- Light theme with soothing `#edf0f5` background and white cards
+- **Plus Jakarta Sans** UI font — high clarity, eye-friendly
+- **JetBrains Mono** for all code/response bodies
+- 4× device pixel ratio canvas rendering for crisp chart arcs on any display
+- HTML-rendered center text in charts (native browser hinting — fully crisp)
+
+---
+
+## ⚙️ All Reporter Flags
+
+| Flag | Description |
+|---|---|
+| `--reporters Newman_Report` | Use this reporter (HTML only) |
+| `--reporters cli,Newman_Report` | CLI output + HTML report simultaneously |
+| `--reporter-Newman_Report-export <path>` | Where to save the HTML report file |
+| `--reporter-Newman_Report-title "..."` | Custom title shown in the report hero header |
+
+**Useful Newman flags to combine:**
+
+| Flag | Description |
+|---|---|
+| `--bail` | Stop on first failure |
+| `--timeout-request 10000` | Per-request timeout in ms (default ~5000) |
+| `--iteration-count 3` | Run the collection N times |
+| `--delay-request 500` | Wait N ms between requests |
 
 ---
 
 ## 🔁 Re-running After Changes
 
-If you edit `index.js` or `src/template.js`, just re-run Newman — no re-linking needed.
-
-If you move the folder, run `npm link` again from the new location.
+- Edit `index.js` or `src/template.js` → just re-run Newman, no re-linking needed.
+- Move the folder → run `npm link` again from the new location.
+- Change the report title → update `--reporter-Newman_Report-title "..."` in the command.
 
 ---
 
 ## ❓ Troubleshooting
 
-**Reporter not found error:**
+**Reporter not found:**
 ```
-Error: No reporter found for "Newman_Report"
+could not find "Newman_Report" reporter
 ```
-→ Make sure you ran `npm link` inside the reporter folder.
-→ Make sure the folder is named exactly `newman_Report` and the package name in `package.json` is `Newman_Report`.
+→ Run `npm link` from inside the `newman_Report` folder.  
+→ Confirm `package.json` has `"name": "newman-reporter-Newman_Report"`.
 
-**Cannot find module error:**
+**Cannot find module:**
 ```
 Error: Cannot find module './src/template'
 ```
-→ Make sure the `src/template.js` file exists inside the reporter folder.
+→ Confirm `src\template.js` exists inside the reporter folder.
 
 **Node.js not found:**
 → Re-install from https://nodejs.org and restart your terminal.
+
+**Permission denied (`EACCES`):**
+→ Open CMD as Administrator (right-click → Run as administrator).
+
+**UUID showing in report header instead of title:**
+→ Pass `--reporter-Newman_Report-title "Your Title"` in the run command.
 
 ---
 
 ## 💡 Tips
 
-- Run with `--bail` to stop on first failure: `newman run ... --bail`
-- Use `--timeout-request 10000` for slow APIs (10s timeout)
-- Use `--iteration-count 3` to run the collection 3 times
-- Combine with CI/CD: the report is a single self-contained HTML file
-- Set a custom header title with `--reporter-Newman_Report-title "Your Title Here"`
+- Use `ReadMeForInstructions.txt` for plain-English, copy-paste-ready commands
+- `--bail` stops the entire run on the first failure — useful for fast feedback
+- `--timeout-request 10000` prevents hangs on slow UAT APIs
+- The generated `reports\report.html` is fully self-contained — share it by copying just that one file
+- Re-run anytime; the old report is overwritten with fresh results
 
 ---
 
 ## 📋 Quick Reference Card
 
 ```bash
-# 1. Install Newman (once)
-npm install -g newman
+# Navigate to the project folder
+cd D:\Automation\Newman\newman_Report
 
-# 2. Link reporter (once, from reporter folder)
-cd newman_Report && npm link
+# Register reporter (once only)
+npm link
 
-# 3. Run your collection
-newman run collection.json \
-  --environment env.json \
-  --reporters cli,Newman_Report \
-  --reporter-Newman_Report-export report.html \
-  --reporter-Newman_Report-title "Your Report Title"
+# Run tests — MOHAP/EDE collection
+newman run collections\MOH_Internal_API.postman_collection.json --environment environments\MOHAP-EDE_OldAPI.postman_environment.json --reporters Newman_Report --reporter-Newman_Report-export reports\report.html --reporter-Newman_Report-title "MOHAP/EDE API Test Run Report"
 
-# 4. Open report
-open report.html          # macOS
-start report.html         # Windows
-xdg-open report.html      # Linux
+# Open the report
+start reports\report.html
 ```
+
+---
+
+## 🔧 Versions Confirmed Working
+
+| Tool | Version |
+|---|---|
+| Node.js | v20.20.0 |
+| npm | 10.8.2 |
+| Newman | 6.2.2 |
+| Package | newman-reporter-Newman_Report v1.0.0 |
