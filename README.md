@@ -1,4 +1,4 @@
-# 📊 Newman Beautiful Reporter
+# 📊 Newman Collection Runner and Reporter 
 
 A stunning light-theme HTML test report for Postman collections run via Newman CLI.
 
