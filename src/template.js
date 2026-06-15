@@ -62,10 +62,10 @@ function generateHTML(data) {
         ).join('')
       : '<tr><td colspan="2" class="empty-row">No response headers</td></tr>';
 
-    const rawEscaped = req.responseBody ? escapeHtml(req.responseBody) : '';
-    const truncated = rawEscaped.length > 50000;
-    const responseBodyContent = rawEscaped
-      ? rawEscaped.substring(0, 50000) + (truncated ? '\n\n[ ... truncated — response exceeds 50,000 characters ... ]' : '')
+    const rawBody    = req.responseBody || '';
+    const truncated  = rawBody.length > 50000;
+    const responseBodyContent = rawBody
+      ? escapeHtml(rawBody.substring(0, 50000)) + (truncated ? '\n\n[ ... truncated — response exceeds 50,000 characters ... ]' : '')
       : 'No response body';
 
     return `

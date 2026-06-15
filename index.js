@@ -1,69 +1,66 @@
 'use strict';
 
-const fs = require('fs');
+const fs   = require('fs');
 const path = require('path');
 const generateHTML = require('./src/template');
 
 function BeautifulReporter(emitter, reporterOptions, options) {
 
-  // Safely extract environment name
+  // ── Environment name ──────────────────────────────────────────────
   let envName = 'None';
-  if (options.environment) {
-    if (typeof options.environment === 'string') {
-      envName = path.basename(options.environment);
-    } else if (options.environment.name) {
-      envName = options.environment.name;
-    } else if (options.environment.id) {
-      envName = options.environment.id;
-    } else {
-      envName = 'Environment';
+  try {
+    if (options.environment) {
+      if (typeof options.environment === 'string') {
+        envName = path.basename(options.environment);
+      } else {
+        envName = options.environment.name || options.environment.id || 'Environment';
+      }
     }
-  }
+  } catch {}
 
+  // ── Result accumulator ────────────────────────────────────────────
   const results = {
     collectionName: '',
-    totalDuration: 0,
-    startTime: new Date().toISOString(),
-    environment: envName,
+    totalDuration:  0,
+    startTime:      new Date().toISOString(),
+    environment:    envName,
     summary: {
-      total: 0,
-      passed: 0,
-      failed: 0,
-      skipped: 0,
-      totalRequests: 0,
-      passedRequests: 0,
-      failedRequests: 0,
-      totalResponseTime: 0,
-      totalRequestSize: 0,
-      totalResponseSize: 0,
+      total: 0, passed: 0, failed: 0, skipped: 0,
+      totalRequests: 0, passedRequests: 0, failedRequests: 0,
+      totalResponseTime: 0, totalRequestSize: 0, totalResponseSize: 0,
     },
     requests: [],
     failures: [],
   };
 
-  // Store per-item assertions keyed by item name
-  const itemAssertions = {};
+  // ── Per-item rolling buffers ──────────────────────────────────────
+  // Newman event order per item: beforeItem → request → assertion(s) → item
+  // Rolling buffers avoid name-collision issues and cross-item data bleed.
+  let currentExec       = {};
+  let currentAssertions = [];
 
-  // Store per-item HTTP data captured from the 'request' event
-  // (args.request / args.response here carry fully resolved values — real URL, real timing)
-  const itemExecData = {};
+  // ── EVENTS ────────────────────────────────────────────────────────
 
   emitter.on('start', (err, args) => {
     try {
       results.collectionName =
-        reporterOptions.title ||
+        reporterOptions.title          ||
         options.collection?.info?.name ||
         'Postman Collection';
-    } catch (e) {
+    } catch {
       results.collectionName = reporterOptions.title || 'Postman Collection';
     }
   });
 
+  // Reset rolling buffers before every item — prevents stale data leaking
+  emitter.on('beforeItem', () => {
+    currentExec       = {};
+    currentAssertions = [];
+  });
+
   emitter.on('request', (err, args) => {
-    if (err) return;
-    const res = args.response;
-    const req = args.request;
-    const itemName = args.item ? args.item.name : '__unknown__';
+    const res      = args?.response;
+    const req      = args?.request;
 
     results.summary.totalRequests += 1;
     if (res) {
@@ -71,141 +68,205 @@ function BeautifulReporter(emitter, reporterOptions, options) {
       results.summary.totalResponseSize += res.responseSize || 0;
     }
 
-    // Capture resolved URL, method, timing, and body from the live HTTP exchange
+    // Resolved URL
     let url = '';
-    let method = 'GET';
-    let requestHeaders = {};
+    try { url = req?.url?.toString() || ''; } catch {}
+
+    // HTTP method
+    const method = req?.method || 'GET';
+
+    // Request headers
+    const requestHeaders = {};
+    try {
+      req?.headers?.members?.forEach(h => { requestHeaders[h.key] = h.value; });
+    } catch {}
+
+    // Request body — handle raw, form-data, urlencoded body types
     let requestBody = '';
-    let responseCode = 0;
-    let responseTime = 0;
-    let responseSize = 0;
-    let responseBody = '';
-    let responseHeaders = {};
-
-    if (req) {
-      try { url = req.url ? req.url.toString() : ''; } catch {}
-      method = req.method || 'GET';
-      if (req.headers && req.headers.members) {
-        req.headers.members.forEach(h => { requestHeaders[h.key] = h.value; });
+    try {
+      if (req?.body) {
+        const mode = req.body.mode;
+        if (mode === 'formdata') {
+          const members = req.body.formdata?.members || req.body.formdata || [];
+          requestBody = members
+            .map(p => `${p.key}: ${p.value !== undefined ? p.value : '[file]'}`)
+            .join('\n');
+        } else if (mode === 'urlencoded') {
+          const members = req.body.urlencoded?.members || req.body.urlencoded || [];
+          requestBody = members.map(p => `${p.key}=${p.value || ''}`).join('&');
+        } else {
+          requestBody = req.body.toString();
+        }
       }
-      if (req.body) {
-        try { requestBody = req.body.toString(); } catch {}
-      }
-    }
+    } catch {}
 
-    if (res) {
+    // Response
+    let responseCode = 0, responseTime = 0, responseSize = 0;
+    let responseBody = '', responseHeaders = {};
+
+    if (err) {
+      // Network / connection-level error — no HTTP response
+      responseBody = `[Request Error] ${err.message || String(err)}`;
+    } else if (res) {
       responseCode = res.code || res.status || 0;
       responseTime = res.responseTime || 0;
       responseSize = res.responseSize || 0;
+
       try {
-        const raw = res.stream ? res.stream.toString() : '';
-        try { responseBody = JSON.stringify(JSON.parse(raw), null, 2); }
-        catch { responseBody = raw; }
+        const raw = res.stream?.toString() || '';
+        let decoded = raw;
+        try { decoded = JSON.stringify(JSON.parse(raw), null, 2); } catch {}
+        // Cap at 100 KB before storing — prevents memory exhaustion on large responses
+        responseBody = decoded.length > 102400
+          ? decoded.substring(0, 102400) + '\n\n[ ... truncated at capture — response exceeds 100 KB ... ]'
+          : decoded;
       } catch { responseBody = '[Unable to decode response]'; }
-      if (res.headers && res.headers.members) {
-        res.headers.members.forEach(h => { responseHeaders[h.key] = h.value; });
-      }
+
+      try {
+        res.headers?.members?.forEach(h => { responseHeaders[h.key] = h.value; });
+      } catch {}
     }
 
-    itemExecData[itemName] = { url, method, requestHeaders, requestBody, responseCode, responseTime, responseSize, responseBody, responseHeaders };
+    currentExec = {
+      url, method, requestHeaders, requestBody,
+      responseCode, responseTime, responseSize, responseBody, responseHeaders,
+    };
   });
 
-  // Capture every assertion as it fires
   emitter.on('assertion', (err, args) => {
     results.summary.total += 1;
 
-    const itemName = args.item ? args.item.name : '__unknown__';
-    if (!itemAssertions[itemName]) itemAssertions[itemName] = [];
-
     if (err) {
       results.summary.failed += 1;
-      itemAssertions[itemName].push({
-        name: args.assertion || err.test || 'Unknown test',
+      currentAssertions.push({
+        name:   args?.assertion || err.test || 'Unknown test',
         passed: false,
-        error: err.message || err.test || String(err),
+        error:  err.message || err.test || String(err),
       });
     } else {
       results.summary.passed += 1;
-      itemAssertions[itemName].push({
-        name: args.assertion || 'Unknown test',
+      currentAssertions.push({
+        name:   args?.assertion || 'Unknown test',
         passed: true,
-        error: null,
+        error:  null,
       });
     }
   });
 
   emitter.on('item', (err, args) => {
-    if (err) return;
+    // Never skip an item — if there was a script/execution error,
+    // add it as a failed assertion so it appears in the report
+    if (err) {
+      results.summary.total  += 1;
+      results.summary.failed += 1;
+      currentAssertions.push({
+        name:   err.test || err.name || 'Script Error',
+        passed: false,
+        error:  err.message || String(err),
+      });
+    }
 
-    const item = args.item;
-    const itemName = item ? item.name : '__unknown__';
+    const item        = args?.item;
+    const itemRequest = item?.request;
+    const itemName    = item?.name || `Request ${results.requests.length + 1}`;
 
-    // Primary source: data captured from the 'request' event (resolved values)
-    const exec = itemExecData[itemName] || {};
-    const itemRequest = item && item.request;
+    // URL: prefer exec (resolved), fall back to item definition
+    let requestUrl = currentExec.url || '';
+    if (!requestUrl) {
+      try { requestUrl = itemRequest?.url?.toString() || ''; } catch {}
+    }
 
-    const assertions = itemAssertions[itemName] || [];
+    // Method: prefer exec, fall back to item definition
+    const requestMethod = currentExec.method || itemRequest?.method || 'GET';
+
+    const assertions  = [...currentAssertions];
     const failedCount = assertions.filter(a => !a.passed).length;
-    const passedCount = assertions.filter(a => a.passed).length;
+    const passedCount = assertions.filter(a =>  a.passed).length;
 
     let status = 'pass';
-    if (failedCount > 2) status = 'critical';
+    if (failedCount > 2)      status = 'critical';
     else if (failedCount > 0) status = 'warning';
 
-    // Fall back to item definition only when request event data is absent
-    let requestUrl = exec.url || '';
-    if (!requestUrl && itemRequest && itemRequest.url) {
-      try { requestUrl = itemRequest.url.toString() || ''; } catch {}
-    }
-    const requestMethod = exec.method || (itemRequest && itemRequest.method) || 'GET';
-
-    if (failedCount > 0) {
-      results.summary.failedRequests += 1;
-    } else {
-      results.summary.passedRequests += 1;
+    // Only count toward pass/fail totals if an HTTP request actually fired
+    if (currentExec.url || currentExec.responseCode) {
+      if (failedCount > 0) results.summary.failedRequests += 1;
+      else                  results.summary.passedRequests += 1;
     }
 
     results.requests.push({
-      id: `req_${results.requests.length + 1}`,
-      name: itemName || `Request ${results.requests.length + 1}`,
+      id:              `req_${results.requests.length + 1}`,
+      name:            itemName,
       status,
-      method: requestMethod,
-      url: requestUrl,
-      responseCode:    exec.responseCode    || 0,
-      responseTime:    exec.responseTime    || 0,
-      responseSize:    exec.responseSize    || 0,
-      requestHeaders:  exec.requestHeaders  || {},
-      requestBody:     exec.requestBody     || '',
-      responseHeaders: exec.responseHeaders || {},
-      responseBody:    exec.responseBody    || '',
+      method:          requestMethod,
+      url:             requestUrl,
+      responseCode:    currentExec.responseCode    || 0,
+      responseTime:    currentExec.responseTime    || 0,
+      responseSize:    currentExec.responseSize    || 0,
+      requestHeaders:  currentExec.requestHeaders  || {},
+      requestBody:     currentExec.requestBody     || '',
+      responseHeaders: currentExec.responseHeaders || {},
+      responseBody:    currentExec.responseBody    || '',
       assertions,
       passedCount,
       failedCount,
       totalAssertions: assertions.length,
     });
+
+    // Clear buffers — ready for the next item
+    currentExec       = {};
+    currentAssertions = [];
   });
 
   emitter.on('done', (err, summary) => {
+    try { // ← outer catch ensures any crash still prints a visible error
+
     try {
-      results.totalDuration =
-        summary.run.timings?.completed - summary.run.timings?.started || 0;
+      const started   = summary?.run?.timings?.started   || 0;
+      const completed = summary?.run?.timings?.completed || 0;
+      results.totalDuration = Math.max(0, completed - started);
     } catch { results.totalDuration = 0; }
 
-    if (summary.run.failures) {
-      results.failures = summary.run.failures.map(f => ({
-        source: f.source?.name || 'Unknown',
-        error: f.error?.message || String(f.error),
-      }));
-    }
+    try {
+      if (summary?.run?.failures?.length) {
+        results.failures = summary.run.failures.map(f => ({
+          source: f.source?.name || 'Unknown',
+          error:  f.error?.message || String(f.error),
+        }));
+      }
+    } catch { results.failures = []; }
 
-    const outputFile = reporterOptions.export || 'newman-report.html';
-    const html = generateHTML(results);
+    // ── Dynamic filename: Title_DD-MM_HH-MM-AM/PM_Report.html ──────
+    const now  = new Date();
+    const dd   = String(now.getDate()).padStart(2, '0');
+    const mo   = String(now.getMonth() + 1).padStart(2, '0');
+    let   hrs  = now.getHours();
+    const mins = String(now.getMinutes()).padStart(2, '0');
+    const ampm = hrs >= 12 ? 'PM' : 'AM';
+    hrs = hrs % 12 || 12;
+    const hh  = String(hrs).padStart(2, '0');
+
+    const safeTitle = (results.collectionName || 'Report')
+      .replace(/[/\\:*?"<>|]/g, '-')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const fileName   = `${safeTitle}_${dd}-${mo}_${hh}-${mins}-${ampm}_Report.html`;
+    const exportBase = reporterOptions.export || 'newman-report.html';
+    const outputDir  = path.dirname(exportBase);
+    const outputFile = path.join(outputDir, fileName);
+
+    try { fs.mkdirSync(outputDir, { recursive: true }); } catch {}
 
     try {
+      const html = generateHTML(results);
       fs.writeFileSync(outputFile, html, 'utf8');
       console.log(`\n✅ Report saved → ${path.resolve(outputFile)}\n`);
     } catch (writeErr) {
       console.error('❌ Could not write report:', writeErr.message);
+    }
+
+    } catch (fatalErr) { // ← outer catch
+      console.error('❌ Reporter crashed in done handler:', fatalErr.message || String(fatalErr));
     }
   });
 }

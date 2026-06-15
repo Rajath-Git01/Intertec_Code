@@ -102,7 +102,7 @@ newman run collections\MOH_Internal_API.postman_collection.json ^
 ```bash
 newman run collections\MOH_Internal_API.postman_collection.json ^
   --environment environments\MOHAP-EDE_OldAPI.postman_environment.json ^
-  --reporters cli,Newman_Report ^
+  --reporters Newman_Report,cli ^
   --reporter-Newman_Report-export reports\report.html ^
   --reporter-Newman_Report-title "MOHAP/EDE API Test Run Report"
 ```
@@ -171,7 +171,7 @@ newman run collections\<your-collection>.json ^
 | Flag | Description |
 |---|---|
 | `--reporters Newman_Report` | Use this reporter (HTML only) |
-| `--reporters cli,Newman_Report` | CLI output + HTML report simultaneously |
+| `--reporters Newman_Report,cli` | CLI output + HTML report simultaneously |
 | `--reporter-Newman_Report-export <path>` | Where to save the HTML report file |
 | `--reporter-Newman_Report-title "..."` | Custom title shown in the report hero header |
 

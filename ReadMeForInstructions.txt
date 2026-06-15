@@ -188,7 +188,9 @@
 
    ┌─────────────────────────────────────────────────────────┐
 
-   newman run collections\MOH_Internal_API.postman_collection.json --environment environments\MOHAP-EDE_OldAPI.postman_environment.json --reporters cli,Newman_Report --reporter-Newman_Report-export reports\report.html --reporter-Newman_Report-title "MOHAP/EDE API Test Run Report"
+   newman run collections\MOH_Internal_API.postman_collection.json --environment environments\MOHAP-EDE_OldAPI.postman_environment.json --reporters Newman_Report,cli --reporter-Newman_Report-export reports\report.html --reporter-Newman_Report-title "MOHAP/EDE API Test Run Report"
+
+   newman run collections\MOH_External_API.postman_collection.json --environment environments\MOHAP-EDE_OldAPI.postman_environment.json --reporters Newman_Report,cli --reporter-Newman_Report-export reports\report.html --reporter-Newman_Report-title "MOHAP/EDE API Test Run Report"
 
    └─────────────────────────────────────────────────────────┘
 
@@ -265,7 +267,7 @@
 
    --reporters Newman_Report
      └─ Use the custom Newman_Report HTML reporter.
-        Use  cli,Newman_Report  to also show live output in CMD.
+        Use  Newman_Report,cli  to also show live output in CMD.
 
    --reporter-Newman_Report-export reports\report.html
      └─ Where to save the generated HTML report file.
@@ -370,7 +372,7 @@
    │  3. RUN TESTS — CLI OUTPUT + HTML REPORT                │
    └─────────────────────────────────────────────────────────┘
 
-   newman run collections\MOH_Internal_API.postman_collection.json --environment environments\MOHAP-EDE_OldAPI.postman_environment.json --reporters cli,Newman_Report --reporter-Newman_Report-export reports\report.html --reporter-Newman_Report-title "MOHAP/EDE API Test Run Report"
+   newman run collections\MOH_Internal_API.postman_collection.json --environment environments\MOHAP-EDE_OldAPI.postman_environment.json --reporters Newman_Report,cli --reporter-Newman_Report-export reports\report.html --reporter-Newman_Report-title "MOHAP/EDE API Test Run Report"
 
    ┌─────────────────────────────────────────────────────────┐
    │  4. OPEN THE REPORT                                     │
