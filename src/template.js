@@ -69,7 +69,7 @@ function generateHTML(data) {
       : 'No response body';
 
     return `
-    <div class="request-card ${statusClass}" id="${req.id}" style="--card-idx:${i}">
+    <div class="request-card ${statusClass}${req.totalAssertions === 0 ? ' no-tests' : ''}" id="${req.id}" style="--card-idx:${i}">
       <div class="request-header" onclick="toggleCard('${req.id}')">
         <div class="request-left">
           <div class="request-index">${i + 1}</div>
@@ -559,6 +559,7 @@ function generateHTML(data) {
     .request-card.pass   { border-left-color: var(--pass-color);  }
     .request-card.warning{ border-left-color: var(--warn-color);  }
     .request-card.critical{ border-left-color: var(--crit-color); }
+    .request-card.no-tests { background: #fffde7; border-left-color: #f9a825; }
 
     .request-card:hover {
       box-shadow: var(--shadow-md);

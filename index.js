@@ -21,6 +21,7 @@ function BeautifulReporter(emitter, reporterOptions, options) {
   // ── Result accumulator ────────────────────────────────────────────
   const results = {
     collectionName: '',
+    actualCollectionName: '',
     totalDuration:  0,
     startTime:      new Date().toISOString(),
     environment:    envName,
@@ -43,10 +44,10 @@ function BeautifulReporter(emitter, reporterOptions, options) {
 
   emitter.on('start', (err, args) => {
     try {
+      const colName = options?.collection?.name || '';
+      results.actualCollectionName = colName;
       results.collectionName =
-        reporterOptions.title          ||
-        options.collection?.info?.name ||
-        'Postman Collection';
+        reporterOptions.title || colName || 'Postman Collection';
     } catch {
       results.collectionName = reporterOptions.title || 'Postman Collection';
     }
@@ -235,7 +236,7 @@ function BeautifulReporter(emitter, reporterOptions, options) {
       }
     } catch { results.failures = []; }
 
-    // ── Dynamic filename: Title_DD-MM_HH-MM-AM/PM_Report.html ──────
+    // ── Dynamic filename: Title_CollectionName_DD-MM_HH-MM_AM/PM.html ──────
     const now  = new Date();
     const dd   = String(now.getDate()).padStart(2, '0');
     const mo   = String(now.getMonth() + 1).padStart(2, '0');
@@ -245,12 +246,16 @@ function BeautifulReporter(emitter, reporterOptions, options) {
     hrs = hrs % 12 || 12;
     const hh  = String(hrs).padStart(2, '0');
 
-    const safeTitle = (results.collectionName || 'Report')
-      .replace(/[/\\:*?"<>|]/g, '-')
-      .replace(/\s+/g, ' ')
-      .trim();
+    const sanitize = s => (s || '').replace(/[/\\:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim();
 
-    const fileName   = `${safeTitle}_${dd}-${mo}_${hh}-${mins}-${ampm}_Report.html`;
+    const safeTitle   = sanitize(reporterOptions.title);
+    const safeColName = sanitize(results.actualCollectionName);
+
+    const namePart = (safeTitle && safeColName && safeTitle !== safeColName)
+      ? `${safeTitle}_${safeColName}`
+      : safeTitle || safeColName || 'Report';
+
+    const fileName   = `${namePart}_${dd}-${mo}_${hh}-${mins}_${ampm}.html`;
     const exportBase = reporterOptions.export || 'newman-report.html';
     const outputDir  = path.dirname(exportBase);
     const outputFile = path.join(outputDir, fileName);

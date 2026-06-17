@@ -155,7 +155,7 @@
 
    Paste this in CMD and press Enter:
 
-        cd D:\Automation\Newman\newman_Report
+        cd /d D:\Automation\Newman\newman_Report
 
    ────────────────────────────────────────────────────────────
    STEP 4.2 — Run the full test command
