@@ -200,6 +200,10 @@ function BeautifulReporter(emitter, reporterOptions, options) {
       if (hasSchemaFailure) status = 'critical';
     }
 
+    // Any non-200 HTTP response code always escalates to critical
+    const rc = currentExec.responseCode || 0;
+    if (rc > 0 && rc !== 200) status = 'critical';
+
     // Only count toward pass/fail totals if an HTTP request actually fired
     if (currentExec.url || currentExec.responseCode) {
       if (failedCount > 0) results.summary.failedRequests += 1;
