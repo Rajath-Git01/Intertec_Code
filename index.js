@@ -18,6 +18,9 @@ function BeautifulReporter(emitter, reporterOptions, options) {
     }
   } catch {}
 
+  // ── Created-by label (passed via --reporter-Newman_Report-createdBy) ──
+  const createdBy = reporterOptions.createdBy || reporterOptions.createdby || 'Newman_Report';
+
   // ── Result accumulator ────────────────────────────────────────────
   const results = {
     collectionName: '',
@@ -25,6 +28,7 @@ function BeautifulReporter(emitter, reporterOptions, options) {
     totalDuration:  0,
     startTime:      new Date().toISOString(),
     environment:    envName,
+    createdBy,
     summary: {
       total: 0, passed: 0, failed: 0, skipped: 0,
       totalRequests: 0, passedRequests: 0, failedRequests: 0,
@@ -187,6 +191,14 @@ function BeautifulReporter(emitter, reporterOptions, options) {
     let status = 'pass';
     if (failedCount > 2)      status = 'critical';
     else if (failedCount > 0) status = 'warning';
+
+    // AJV / Schema failures always escalate to critical regardless of count
+    if (status !== 'critical') {
+      const hasSchemaFailure = assertions.some(a =>
+        !a.passed && /ajv|schema/i.test(a.name + ' ' + (a.error || ''))
+      );
+      if (hasSchemaFailure) status = 'critical';
+    }
 
     // Only count toward pass/fail totals if an HTTP request actually fired
     if (currentExec.url || currentExec.responseCode) {

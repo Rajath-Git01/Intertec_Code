@@ -6,6 +6,7 @@ function generateHTML(data) {
     totalDuration,
     startTime,
     environment,
+    createdBy,
     summary,
     requests,
   } = data;
@@ -28,6 +29,44 @@ function generateHTML(data) {
     year: 'numeric', month: 'long', day: 'numeric',
     hour: '2-digit', minute: '2-digit', second: '2-digit'
   });
+
+  // Build response code distribution
+  const rcFamilyPalettes = {
+    '1': ['#a5f3fc', '#67e8f9', '#22d3ee'],
+    '2': ['#4ade80', '#22c55e', '#16a34a', '#86efac'],
+    '3': ['#38bdf8', '#0ea5e9', '#0284c7'],
+    '4': ['#fbbf24', '#f59e0b', '#d97706', '#fb923c', '#f97316'],
+    '5': ['#fca5a5', '#f87171', '#ef4444', '#dc2626'],
+  };
+  const rcFamilyIdx = {};
+  const rcMap = {};
+  requests.forEach(req => {
+    const code = String(req.responseCode || 'N/A');
+    rcMap[code] = (rcMap[code] || 0) + 1;
+  });
+  const rcEntries = Object.entries(rcMap).sort((a, b) => {
+    if (a[0] === 'N/A') return 1;
+    if (b[0] === 'N/A') return -1;
+    return parseInt(a[0]) - parseInt(b[0]);
+  });
+  const rcColors = rcEntries.map(([code]) => {
+    const f = String(code)[0];
+    const pal = rcFamilyPalettes[f] || ['#9ca3af', '#6b7280', '#4b5563'];
+    rcFamilyIdx[f] = rcFamilyIdx[f] || 0;
+    const color = pal[rcFamilyIdx[f] % pal.length];
+    rcFamilyIdx[f]++;
+    return color;
+  });
+  const rcLegendHTML = rcEntries.map(([code, count], idx) => {
+    const pct = requests.length > 0 ? ((count / requests.length) * 100).toFixed(1) : '0.0';
+    return `
+        <div class="legend-item" data-chart="rc" data-idx="${idx}">
+          <div class="legend-dot" style="background:${rcColors[idx]}"></div>
+          <span class="legend-label">${escapeHtml(code)}</span>
+          <span class="legend-value">${count}</span>
+          <span class="legend-pct">${pct}%</span>
+        </div>`;
+  }).join('');
 
   // Build request cards HTML
   const requestCardsHTML = requests.map((req, i) => {
@@ -127,7 +166,10 @@ function generateHTML(data) {
                 <span class="meta-chip">Size: <strong>${formatBytes(req.responseSize)}</strong></span>
               </div>
               <div class="code-block">
-                <button class="copy-btn" onclick="copyCode('code-${req.id}')">Copy</button>
+                <div class="code-btn-group">
+                  <button class="copy-btn" onclick="copyCode('code-${req.id}')">Copy</button>
+                  <button class="copy-btn download-btn" data-codeid="code-${req.id}" data-report="${escapeHtml(collectionName)}" data-api="${escapeHtml(req.name)}" onclick="downloadCode(this)">Download</button>
+                </div>
                 <pre id="code-${req.id}" class="code-content">${responseBodyContent}</pre>
               </div>
             </div>
@@ -217,7 +259,7 @@ function generateHTML(data) {
 
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
-    html { scroll-behavior: smooth; }
+    html { scroll-behavior: smooth; overflow-y: scroll; }
     body {
       font-family: var(--font-sans);
       background: var(--bg-deep);
@@ -391,11 +433,19 @@ function generateHTML(data) {
     /* ─── CHARTS GRID ────────────────────────────────────── */
     .charts-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(3, 1fr);
       gap: 20px;
       margin-bottom: 36px;
     }
-    @media (max-width: 768px) { .charts-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 1024px) { .charts-grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 640px)  { .charts-grid { grid-template-columns: 1fr; } }
+
+    .rc-legend {
+      max-height: 190px;
+      overflow-y: auto;
+    }
+    .rc-legend::-webkit-scrollbar { width: 5px; }
+    .rc-legend::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.18); border-radius: 4px; }
 
     .chart-card {
       background: var(--gradient-card);
@@ -818,9 +868,15 @@ function generateHTML(data) {
       position: relative;
       overflow: hidden;
     }
-    .copy-btn {
+    .code-btn-group {
       position: absolute;
       top: 10px; right: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      z-index: 1;
+    }
+    .copy-btn {
       background: rgba(0,0,0,0.05);
       border: 1px solid rgba(0,0,0,0.12);
       color: var(--text-secondary);
@@ -831,9 +887,10 @@ function generateHTML(data) {
       border-radius: 4px;
       font-family: var(--font-sans);
       transition: all 0.2s;
-      z-index: 1;
     }
     .copy-btn:hover { background: rgba(0,0,0,0.10); color: var(--text-primary); }
+    .download-btn { background: rgba(37,99,235,0.07); border-color: rgba(37,99,235,0.2); color: var(--accent-blue); }
+    .download-btn:hover { background: rgba(37,99,235,0.15); color: var(--accent-blue); }
     .code-content {
       font-family: var(--font-mono);
       font-size: 12px;
@@ -888,10 +945,10 @@ function generateHTML(data) {
     .report-footer span { color: var(--text-secondary); }
 
     /* ─── SCROLLBAR ───────────────────────────────────────── */
-    ::-webkit-scrollbar { width: 5px; height: 5px; }
-    ::-webkit-scrollbar-track { background: var(--bg-deep); }
-    ::-webkit-scrollbar-thumb { background: var(--border-med); border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: var(--bg-panel); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.22); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.38); }
 
     /* ─── ANIMATIONS ──────────────────────────────────────── */
     @keyframes fadeInUp {
@@ -1021,6 +1078,22 @@ function generateHTML(data) {
         </div>
       </div>
     </div>
+
+    <!-- Response Code Pie -->
+    <div class="chart-card">
+      <div class="chart-title">Response Code Distribution</div>
+      <div class="chart-subtitle">HTTP status codes returned across all requests</div>
+      <div class="chart-wrapper">
+        <canvas id="rcChart"></canvas>
+        <div class="chart-center-overlay">
+          <div class="chart-center-value">${rcEntries.length}</div>
+          <div class="chart-center-label">STATUS CODES</div>
+        </div>
+      </div>
+      <div class="chart-legend rc-legend">
+        ${rcLegendHTML}
+      </div>
+    </div>
   </div>
 
   <!-- REQUEST LIST -->
@@ -1040,7 +1113,7 @@ function generateHTML(data) {
 </main>
 
 <footer class="report-footer">
-  Generated by <span>Newman_Report</span> · ${formattedDate} &nbsp;·&nbsp; Created By <span>Rajath</span>
+  Generated by <span>Newman_Report</span> · ${formattedDate} &nbsp;·&nbsp; Created By <span>${escapeHtml(createdBy)}</span>
 </footer>
 
 <!-- ─── SCRIPTS ──────────────────────────────────────── -->
@@ -1052,6 +1125,9 @@ function generateHTML(data) {
   const API_PASS = ${requests.filter(r => r.status === 'pass').length};
   const API_WARN = ${requests.filter(r => r.status === 'warning').length};
   const API_CRIT = ${requests.filter(r => r.status === 'critical').length};
+  const RC_LABELS = ${JSON.stringify(rcEntries.map(([code]) => code))};
+  const RC_COUNTS = ${JSON.stringify(rcEntries.map(([, count]) => count))};
+  const RC_COLORS = ${JSON.stringify(rcColors)};
 
   Chart.defaults.color = '#4a5a72';
   Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
@@ -1147,10 +1223,31 @@ function generateHTML(data) {
       options: makeOpts(' APIs'),
     });
 
+    // ── Response Code Chart ────────────────────────────
+    const rcCtx = document.getElementById('rcChart').getContext('2d');
+    const rcChartInst = new Chart(rcCtx, {
+      type: 'doughnut',
+      data: {
+        labels: RC_LABELS,
+        datasets: [{
+          data: RC_COUNTS,
+          backgroundColor: RC_COLORS,
+          borderColor: '#ffffff',
+          borderWidth: 3,
+          borderRadius: 5,
+          hoverOffset: 18,
+          hoverBorderWidth: 0,
+        }]
+      },
+      options: makeOpts(''),
+    });
+
     // ── Legend click-to-toggle ─────────────────────────
     document.querySelectorAll('.legend-item[data-chart]').forEach(el => {
       el.addEventListener('click', () => {
-        const chart = el.dataset.chart === 'test' ? testChartInst : apiChartInst;
+        const chart = el.dataset.chart === 'test' ? testChartInst
+                    : el.dataset.chart === 'api'  ? apiChartInst
+                    : rcChartInst;
         chart.toggleDataVisibility(parseInt(el.dataset.idx, 10));
         chart.update();
         el.classList.toggle('legend-dimmed');
@@ -1229,6 +1326,26 @@ function copyCode(id) {
       setTimeout(() => { btn.textContent = 'Copy'; btn.style.color = ''; }, 2000);
     }
   }).catch(() => {});
+}
+
+// ── Download Code ─────────────────────────────────────
+function downloadCode(btn) {
+  const id = btn.dataset.codeid;
+  const text = document.getElementById(id)?.textContent || '';
+  const sanitize = s => s.replace(/[^a-zA-Z0-9_\-]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+  const filename = sanitize(btn.dataset.report) + '_' + sanitize(btn.dataset.api) + '.txt';
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  btn.textContent = 'Downloaded!';
+  btn.style.color = '#4ade80';
+  setTimeout(() => { btn.textContent = 'Download'; btn.style.color = ''; }, 2000);
 }
 </script>
 
